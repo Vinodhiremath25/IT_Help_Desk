@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoDesk AI - Autonomous IT Helpdesk</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-screen flex flex-col overflow-hidden">
+
+  <!-- Header -->
+  <header class="bg-slate-900 border-b border-slate-800 px-6 py-3.5 flex items-center justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20">
+        <i class="fa-solid fa-robot text-lg"></i>
+      </div>
+      <div>
+        <h1 class="text-base font-semibold text-white tracking-tight flex items-center gap-2">
+          AutoDesk AI
+          <span class="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono font-medium">Groq Cloud (Llama 3.3)</span>
+          <span class="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full font-mono font-medium">HITL Active</span>
+        </h1>
+        <p class="text-xs text-slate-400">Autonomous Helpdesk with Human-in-the-Loop Safeguards</p>
+      </div>
+    </div>
+
+    <!-- Active Employee Selector -->
+    <div class="flex items-center gap-4 text-xs">
+      <div class="flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 px-3 py-1.5 rounded-lg">
+        <span class="text-slate-400 font-medium">Active User:</span>
+        <select id="userSelector" class="bg-slate-900 text-indigo-400 font-mono font-semibold outline-none border border-slate-700 rounded px-2 py-0.5 cursor-pointer">
+          <option value="EMP101">EMP101 (Alice - Locked MFA)</option>
+          <option value="EMP102">EMP102 (Bob - Active)</option>
+        </select>
+      </div>
+      <button onclick="clearChat()" class="text-slate-400 hover:text-rose-400 text-xs px-2.5 py-1.5 border border-slate-800 hover:border-rose-900/50 rounded-md transition flex items-center gap-1.5">
+        <i class="fa-solid fa-trash-can"></i> New Session
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Layout -->
+  <div class="flex-1 flex overflow-hidden">
+    
+    <!-- Chat Section -->
+    <section class="flex-1 flex flex-col bg-slate-950/60 border-r border-slate-800/80">
+      
+      <!-- Messages List -->
+      <div id="chatMessages" class="flex-1 overflow-y-auto p-6 space-y-4">
+        <!-- Welcome Message -->
+        <div class="flex items-start gap-3 max-w-2xl">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+            <i class="fa-solid fa-headset text-sm"></i>
+          </div>
+          <div class="bg-slate-900 border border-slate-800/80 rounded-2xl rounded-tl-sm p-4 text-sm leading-relaxed text-slate-300">
+            <p class="font-medium text-slate-200 mb-1">Hello! I'm your IT Helpdesk Assistant.</p>
+            <p>I can help you check MFA status, reset tokens (requires authorization), and create Jira escalation tickets.</p>
+            <div class="mt-3 flex flex-wrap gap-2 text-xs">
+              <button onclick="suggest('Check my MFA status')" class="bg-slate-800/80 hover:bg-slate-800 text-indigo-300 border border-indigo-500/20 px-2.5 py-1 rounded-md transition">Check my MFA status</button>
+              <button onclick="suggest('Reset my MFA token')" class="bg-slate-800/80 hover:bg-slate-800 text-indigo-300 border border-indigo-500/20 px-2.5 py-1 rounded-md transition">Reset my MFA token</button>
+              <button onclick="suggest('My laptop screen is cracked and flickering')" class="bg-slate-800/80 hover:bg-slate-800 text-indigo-300 border border-indigo-500/20 px-2.5 py-1 rounded-md transition">Report broken laptop screen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Human-in-the-loop Pending Approval Banner -->
+      <div id="approvalBanner" class="hidden p-4 bg-amber-950/30 border-t border-amber-500/30 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <div>
+            <div class="text-xs font-semibold text-amber-300 uppercase tracking-wide">Administrator Approval Required</div>
+            <div id="approvalDetails" class="text-xs text-slate-300 font-mono"></div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="respondApproval(false)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition">
+            Reject
+          </button>
+          <button onclick="respondApproval(true)" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium text-xs shadow-lg shadow-amber-600/20 transition">
+            Approve Execution
+          </button>
+        </div>
+      </div>
+
+      <!-- Input Bar -->
+      <div class="p-4 bg-slate-900/60 border-t border-slate-800">
+        <form id="chatForm" onsubmit="handleSend(event)" class="flex gap-2">
+          <input
+            id="messageInput"
+            type="text"
+            placeholder="Type your IT issue or question..."
+            autocomplete="off"
+            class="flex-1 bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 outline-none transition"
+          />
+          <button
+            type="submit"
+            id="sendBtn"
+            class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-5 rounded-xl text-sm flex items-center gap-2 transition disabled:opacity-50 shadow-lg shadow-indigo-600/20"
+          >
+            <span>Send</span>
+            <i class="fa-solid fa-arrow-up text-xs"></i>
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Right Sidebar -->
+    <aside class="w-80 bg-slate-900/40 flex flex-col shrink-0">
+      <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+          <i class="fa-solid fa-ticket text-indigo-400"></i> Active IT Tickets
+        </h2>
+        <button onclick="loadTickets()" class="text-xs text-slate-500 hover:text-slate-300 transition">
+          <i class="fa-solid fa-rotate"></i>
+        </button>
+      </div>
+
+      <div id="ticketsList" class="flex-1 overflow-y-auto p-4 space-y-3">
+        <div class="text-xs text-slate-500 text-center py-6">No tickets generated yet.</div>
+      </div>
+
+      <div class="p-4 border-t border-slate-800 bg-slate-950/40">
+        <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Last Actions Executed</h3>
+        <div id="actionsBox" class="text-xs font-mono text-emerald-400 bg-slate-900/90 border border-slate-800 rounded-lg p-2.5 min-h-[60px] max-h-32 overflow-y-auto">
+          <span class="text-slate-500">Waiting for agent activity...</span>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <script>
+    let currentThreadId = "thread-" + Date.now();
+
+    function clearChat() {
+      currentThreadId = "thread-" + Date.now();
+      document.getElementById("approvalBanner").classList.add("hidden");
+      const chat = document.getElementById("chatMessages");
+      chat.innerHTML = `
+        <div class="flex items-start gap-3 max-w-2xl">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+            <i class="fa-solid fa-headset text-sm"></i>
+          </div>
+          <div class="bg-slate-900 border border-slate-800/80 rounded-2xl rounded-tl-sm p-4 text-sm leading-relaxed text-slate-300">
+            <p class="font-medium text-slate-200 mb-1">New session started!</p>
+            <p>How can I assist you with your IT needs today?</p>
+          </div>
+        </div>`;
+      document.getElementById("actionsBox").innerHTML = '<span class="text-slate-500">Session reset.</span>';
+    }
+
+    function suggest(text) {
+      document.getElementById("messageInput").value = text;
+      handleSend(new Event("submit"));
+    }
+
+    async function handleSend(e) {
+      e.preventDefault();
+      const input = document.getElementById("messageInput");
+      const text = input.value.trim();
+      if (!text) return;
+
+      const userId = document.getElementById("userSelector").value;
+      input.value = "";
+      input.disabled = true;
+      document.getElementById("sendBtn").disabled = true;
+
+      appendMessage("user", text);
+      const loadingId = appendLoading();
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: userId,
+            message: text,
+            thread_id: currentThreadId
+          })
+        });
+
+        const data = await res.json();
+        removeLoading(loadingId);
+
+        if (res.ok) {
+          appendMessage("agent", data.reply);
+          updateActions(data.actions_taken);
+          loadTickets();
+
+          if (data.pending_approval) {
+            showApprovalBanner(data.pending_approval);
+          } else {
+            document.getElementById("approvalBanner").classList.add("hidden");
+          }
+        } else {
+          appendMessage("agent", "Error: " + (data.detail || "Unable to reach server."));
+        }
+      } catch (err) {
+        removeLoading(loadingId);
+        appendMessage("agent", "Network error occurred: " + err.message);
+      } finally {
+        input.disabled = false;
+        document.getElementById("sendBtn").disabled = false;
+        input.focus();
+      }
+    }
+
+    function showApprovalBanner(pending) {
+      const banner = document.getElementById("approvalBanner");
+      const details = document.getElementById("approvalDetails");
+      details.textContent = `Action: ${pending.tool_name} | Target: ${JSON.stringify(pending.tool_args)}`;
+      banner.classList.remove("hidden");
+    }
+
+    async function respondApproval(isApproved) {
+      const banner = document.getElementById("approvalBanner");
+      banner.classList.add("hidden");
+      const loadingId = appendLoading();
+
+      try {
+        const res = await fetch("/api/approve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            thread_id: currentThreadId,
+            approved: isApproved
+          })
+        });
+
+        const data = await res.json();
+        removeLoading(loadingId);
+
+        if (res.ok) {
+          appendMessage("agent", data.reply);
+          updateActions(data.actions_taken);
+          loadTickets();
+        } else {
+          appendMessage("agent", "Error: " + (data.detail || "Approval processing failed."));
+        }
+      } catch (err) {
+        removeLoading(loadingId);
+        appendMessage("agent", "Error: " + err.message);
+      }
+    }
+
+    function appendMessage(role, content) {
+      const container = document.getElementById("chatMessages");
+      const wrapper = document.createElement("div");
+
+      if (role === "user") {
+        wrapper.className = "flex justify-end";
+        wrapper.innerHTML = `
+          <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-xl text-sm leading-relaxed shadow-md">
+            ${escapeHtml(content)}
+          </div>`;
+      } else {
+        wrapper.className = "flex items-start gap-3 max-w-2xl";
+        wrapper.innerHTML = `
+          <div class="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0 mt-0.5">
+            <i class="fa-solid fa-robot text-sm"></i>
+          </div>
+          <div class="bg-slate-900 border border-slate-800/80 rounded-2xl rounded-tl-sm p-4 text-sm leading-relaxed text-slate-300">
+            ${escapeHtml(content).replace(/\\n/g, '<br/>')}
+          </div>`;
+      }
+
+      container.appendChild(wrapper);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function appendLoading() {
+      const id = "loading-" + Date.now();
+      const container = document.getElementById("chatMessages");
+      const wrapper = document.createElement("div");
+      wrapper.id = id;
+      wrapper.className = "flex items-start gap-3 max-w-2xl";
+      wrapper.innerHTML = `
+        <div class="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+          <i class="fa-solid fa-circle-notch fa-spin text-sm"></i>
+        </div>
+        <div class="bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-400 flex items-center gap-2">
+          <span>AutoDesk AI is processing...</span>
+        </div>`;
+      container.appendChild(wrapper);
+      container.scrollTop = container.scrollHeight;
+      return id;
+    }
+
+    function removeLoading(id) {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    }
+
+    function updateActions(actions) {
+      const box = document.getElementById("actionsBox");
+      if (!actions || actions.length === 0) {
+        box.innerHTML = '<span class="text-slate-500">No tools invoked for this turn.</span>';
+        return;
+      }
+      box.innerHTML = actions.map(a => `<div class="py-0.5"><i class="fa-solid fa-check text-[10px] text-emerald-400 mr-1"></i>${escapeHtml(a)}</div>`).join('');
+    }
+
+    async function loadTickets() {
+      try {
+        const res = await fetch("/api/tickets");
+        const data = await res.json();
+        const list = document.getElementById("ticketsList");
+
+        if (!data.tickets || data.tickets.length === 0) {
+          list.innerHTML = '<div class="text-xs text-slate-500 text-center py-6">No tickets generated yet.</div>';
+          return;
+        }
+
+        list.innerHTML = data.tickets.map(t => `
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs space-y-1.5 shadow-sm">
+            <div class="flex items-center justify-between">
+              <span class="font-mono font-bold text-indigo-400">${t.ticket_id}</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                t.priority.toLowerCase() === 'high' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+              }">${t.priority}</span>
+            </div>
+            <div class="font-semibold text-slate-200 truncate">${escapeHtml(t.title)}</div>
+            <p class="text-slate-400 line-clamp-2 text-[11px]">${escapeHtml(t.description)}</p>
+            <div class="text-[10px] text-slate-500 pt-1 flex justify-between border-t border-slate-800/60">
+              <span>User: ${t.user_id}</span>
+              <span class="text-emerald-400 font-semibold">${t.status}</span>
+            </div>
+          </div>
+        `).reverse().join('');
+      } catch (e) {
+        console.error("Failed to load tickets", e);
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    loadTickets();
+  </script>
+</body>
+</html>
