@@ -24,7 +24,7 @@ SENSITIVE_TOOLS = {"reset_mfa_token"}
 # 2. Cloud Groq Llama 3.3 Engine
 print(">>> INITIALIZING GROQ CLOUD ENGINE (llama-3.3-70b-versatile)...")
 llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
+    model="llama-3.1-8b-instant",
     temperature=0,
 ).bind_tools(tools)
 
